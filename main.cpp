@@ -6,278 +6,149 @@
 
 double EPSILON = 0.00001;
 int NUM_RECTANGLES = 2000;
+double LOWER_BOUND = 0;
+double UPPER_BOUND = 100;
 
-// generisi tacke
-// tacke generisem pomocu random funkcija i ako je degenerisan slucaj odmah odbacim
-static void generate_rectangles(int n) {
-    std::fstream rectanglesFile("rectangles.txt", std::ios::out | std::ios::trunc);
-
-    double lower_bound = 0;
-    double upper_bound = 500;
-    std::random_device rd;
-    std::mt19937 re(rd());
-    std::uniform_real_distribution<double> unifDistrib(lower_bound, upper_bound);
-
-    double ax;
-    double ay;
-    double bx;
-    double by;
-    double cx;
-    double cy;
-    double dx;
-    double dy;
-
-    for (int i = 0; i < n; i++) {
-        // A nema nikakva ogranicenja
-        ax = unifDistrib(re);
-        ay = unifDistrib(re);
-
-        // B ne sme biti identicno sa A
-        bx = unifDistrib(re);
-        by = unifDistrib(re);
-        while (std::fabs(bx - ax) < EPSILON && std::fabs(by - ay) < EPSILON) {
-            bx = unifDistrib(re);
-            by = unifDistrib(re);
-        }
-
-        // C ne sme biti kolinearno sa AB
-        // ekvivalentno, AC i BC nisu linearno zavisni
-        // ako jesu, generisemo ponovo
-        cx = unifDistrib(re);
-        cy = unifDistrib(re);
-
-        while(true) {
-            if (std::fabs((ax - cx)*(by - cy) - (bx - cx)*(ay - cy)) > EPSILON) {
-                break;
-            }
-            cx = unifDistrib(re);
-            cy = unifDistrib(re);
-        }
-
-        // D ne sme biti kolinearno ni sa AB, ni sa BC ni sa CA
-        // ekvivalentno, AD lin nez sa BD, itd.
-        dx = unifDistrib(re);
-        dy = unifDistrib(re);
-
-        while(true) {
-            if (std::fabs((ax - dx)*(by - dy) - (bx - dx)*(ay - dy)) > EPSILON &&
-                std::fabs((cx - dx)*(by - dy) - (bx - dx)*(cy - dy)) > EPSILON &&
-                std::fabs((ax - dx)*(cy - dy) - (cx - dx)*(ay - dy)) > EPSILON) {
-                break;
-                }
-            dx = unifDistrib(re);
-            dy = unifDistrib(re);
-        }
-
-        // za sada, cetvorougao ne mora da bude prost! upisimo temena u fajl.
-        rectanglesFile << ax << " " << ay << " " << bx << " " << by << " " << cx
-            << " " << cy << " " << dx << " " << dy << " ";
-
-        // odmah ubacujem i koordinate sredista stranica
-        rectanglesFile << (ax + bx)/2.0 << " " << (ay + by)/2.0 << " "
-            << (bx + cx)/2.0 << " " << (by + cy)/2.0 << " "
-            << (cx + dx)/2.0 << " " << (cy + dy)/2.0 << " "
-            << (dx + ax)/2.0 << " " << (dy + ay)/2.0 << std::endl;
-
+class Point {
+public:
+    Point() {
+        std::random_device rd;
+        std::mt19937 re(rd());
+        std::uniform_real_distribution<double> unifDistrib(LOWER_BOUND, UPPER_BOUND);
+        x = unifDistrib(re);
+        y = unifDistrib(re);
     }
-    rectanglesFile.close();
-}
-static bool has_next_line(std::fstream& file) {
-    char c = file.peek();
-    return (c != EOF);
+    Point(double _x, double _y): x(_x), y(_y) {}
+    bool operator==(const Point &other) const {
+        return x - other.x < EPSILON && y - other.y < EPSILON; //
+    }
+    void generate_again() {
+        std::random_device rd;
+        std::mt19937 re(rd());
+        std::uniform_real_distribution<double> unifDistrib(LOWER_BOUND, UPPER_BOUND);
+        x = unifDistrib(re);
+        y = unifDistrib(re);
+    }
+    static bool pointsCollinear(const Point &a, const Point &b, const Point &c) {
+        return std::fabs((a.x - c.x)*(b.y - c.y) - (b.x - c.x)*(a.y - c.y)) < EPSILON;
+    }
+    static bool rectangleDegenerate(const Point &a, const Point &b, const Point &c, const Point &d) {
+        return !pointsCollinear(a, b, c) && !pointsCollinear(a, b, d) && !pointsCollinear(b, c, d);
+    }
+    double x;
+    double y;
+};
 
-}
-static void test_paralel() {
-    std::fstream rectanglesFile("rectangles.txt", std::ios::in);
-    std::fstream hypoFile("hypoParallel.txt", std::ios::out | std::ios::trunc);
+class Rectangle {
+    public:
+    Rectangle(Point a, Point b, Point c, Point d) {
+        this->a = a;
+        this->b = b;
+        this->c = c;
+        this->d = d;
+        this->ab = Point((a.x + b.x)/2, (a.y+b.y)/2);
+        this->bc = Point((b.x + c.x)/2, (b.y+c.y)/2);
+        this->cd = Point((c.x + d.x)/2, (c.y+d.y)/2);
+        this->da = Point((a.x + d.x)/2, (a.y+d.y)/2);
+    }
+    // todo: kako da se u fji osiguram da je vertices bar 16 mesta dug?
+    void returnVerticeArray(double* vertices) const {
+        vertices[0] = a.x;
+        vertices[1] = a.y;
+        vertices[2] = b.x;
+        vertices[3] = b.y;
+        vertices[4] = c.x;
+        vertices[5] = c.y;
+        vertices[6] = d.x;
+        vertices[7] = d.y;
+        vertices[8] = ab.x;
+        vertices[9] = ab.y;
+        vertices[10] = bc.x;
+        vertices[11] = bc.y;
+        vertices[12] = cd.x;
+        vertices[13] = cd.y;
+        vertices[14] = da.x;
+        vertices[15] = da.y;
+    }
+    Point a;
+    Point b;
+    Point c;
+    Point d;
+    Point ab;
+    Point bc;
+    Point cd;
+    Point da;
+};
 
-    // skup parova duzi == SKUP HIPOTEZA
-    std::set<std::vector<int>> skupHipoteza;
+static void test_parallel(const Rectangle &rec, std::set<std::vector<int>> &hypothesis_set) {
+    double vertices[16];
+    rec.returnVerticeArray(vertices);
+
+    for (auto it = hypothesis_set.begin(); it != hypothesis_set.end(); ) {
+        // proveriti da li hipoteza vazi za ucitana temena
+        // tj proveriti da li za ucitane vertices vazi
+        // hipoteza[0] hipoteza[1] || hipoteza[2] hipoteza[3]
+        // ako ne vazi, izbaciti hipotezu iz skupa
+        int i = it->at(0);
+        int j = it->at(1);
+        int i1 = it->at(2);
+        int j1 = it->at(3);
+        // todo: ovde je EPSILON 1 i ne radi mi za manje EPSILON ??
+        if (std::fabs((vertices[2*i] - vertices[2*j])*(vertices[2*i1+1] - vertices[2*j1+1]) -
+                    (vertices[2*i1] - vertices[2*j1])*(vertices[2*i+1] - vertices[2*j+1])) < 1) {
+            it++;
+                    } else {
+                        // ako je det veliko, nisu paralelne, pa izbacujemo hipotezu.
+                        // tu hipotezu onda ne proveravam ni za naredne cetvorouglove.
+                        it = hypothesis_set.erase(it);
+                    }
+    }
+}
+
+static void generate_hypothesis(std::set<std::vector<int>> &hypothesis_set, bool symmetric = false) {
     int num_dots = 8;
-    int num_of_pairs = 0;
-
-    for(int i = 0; i < num_dots; i++) {
-        for(int j = i + 1; j < num_dots; j++) {
-            for(int i1 = 0; i1 < num_dots; i1++) {
-                for(int j1 = i1 + 1; j1 < num_dots; j1++) {
-                    // dodajem ((i, j), (i1, j1)) akko je prvi par leksikografski veci
-                    // jer mi ne trebaju duplikati, poredak je nebitan
-                    if (i > i1) {
-                        skupHipoteza.insert({i, j, i1, j1});
-                        num_of_pairs ++;
-                    } else if (i == i1) {
-                        if (j > j1) {
-                            skupHipoteza.insert({i, j, i1, j1});
-                            num_of_pairs ++;
+    if (symmetric) {
+        for(int i = 0; i < num_dots; i++) {
+            for(int j = i + 1; j < num_dots; j++) {
+                for(int i1 = 0; i1 < num_dots; i1++) {
+                    for(int j1 = i1 + 1; j1 < num_dots; j1++) {
+                        // dodajem ((i, j), (i1, j1)) akko je prvi par leksikografski veci
+                        if (i > i1) {
+                            hypothesis_set.insert({i, j, i1, j1});
+                        } else if (i == i1) {
+                            if (j > j1) {
+                                hypothesis_set.insert({i, j, i1, j1});
+                            }
                         }
                     }
                 }
             }
         }
+        return;
     }
-
-    while (has_next_line(rectanglesFile)) {
-        double vertices[16];
-        rectanglesFile >> vertices[0] >> vertices[1] >> vertices[2] >> vertices[3]
-            >> vertices[4] >> vertices[5] >> vertices[6] >> vertices[7]
-            >> vertices[8] >> vertices[9] >> vertices[10] >> vertices[11]
-            >> vertices[12] >> vertices[13] >> vertices[14] >> vertices[15];
-
-        /*
-        std::cout << "obradjujem sledeci cetvorougao: \n";
-        std::cout << vertices[0] << " " << vertices[1] << " " << vertices[2] << " " << vertices[3] << " "
-            << vertices[4] << " " << vertices[5] << " " << vertices[6] << " " << vertices[7] << " "
-            << vertices[8] << " " << vertices[9] << " " << vertices[10] << " " << vertices[11] << " "
-            << vertices[12] << " " << vertices[13] << " " << vertices[14] << " " << vertices[15] << std::endl;
-        */
-
-        for (auto it = skupHipoteza.begin(); it != skupHipoteza.end(); ) {
-            // proveriti da li hipoteza vazi za ucitana temena
-            // tj proveriti da li za ucitane vertices vazi
-            // hipoteza[0] hipoteza[1] || hipoteza[2] hipoteza[3]
-            // ako ne vazi, izbaciti hipotezu iz skupa
-            int i = it->at(0);
-            int j = it->at(1);
-            int i1 = it->at(2);
-            int j1 = it->at(3);
-
-            if (std::fabs((vertices[2*i] - vertices[2*j])*(vertices[2*i1+1] - vertices[2*j1+1]) -
-                        (vertices[2*i1] - vertices[2*j1])*(vertices[2*i+1] - vertices[2*j+1])) < 1) {
-                it++;
-                // std::cout << i << " " << j << " || " << i1 << " " << j1 << std::endl;
-            } else {
-
-                // ako je det veliko, nisu paralelne, pa izbacujemo hipotezu.
-                // tu hipotezu onda ne proveravam ni za naredne cetvorouglove.
-                it = skupHipoteza.erase(it);
-            }
-        }
-    }
-    // pisem one hipoteze koje su prezivele sve cetvorouglove
-    for (auto hipoteza : skupHipoteza) {
-        hypoFile << hipoteza[0] << " " << hipoteza[1] << " || " << hipoteza[2] << " " << hipoteza[3] << std::endl;
-    }
-
-    hypoFile.close();
-    rectanglesFile.close();
-}
-
-static void test_2x() {
-    std::fstream rectanglesFile("rectangles.txt", std::ios::in);
-    std::fstream hypoFile("hypo2x.txt", std::ios::out | std::ios::trunc);
-
-    // skup parova duzi == SKUP HIPOTEZA
-    std::set<std::vector<int>> skupHipoteza;
-    int num_dots = 8;
-
+    // ako nije simetricno tvrdjenje, sve dodajemo
     for(int i = 0; i < num_dots; i++) {
         for(int j = i + 1; j < num_dots; j++) {
             for(int i1 = 0; i1 < num_dots; i1++) {
                 for(int j1 = i1 + 1; j1 < num_dots; j1++) {
-                    skupHipoteza.insert({i, j, i1, j1});
+                    hypothesis_set.insert({i, j, i1, j1});
                 }
             }
         }
     }
-
-    while (has_next_line(rectanglesFile)) {
-        double vertices[16];
-        rectanglesFile >> vertices[0] >> vertices[1] >> vertices[2] >> vertices[3]
-            >> vertices[4] >> vertices[5] >> vertices[6] >> vertices[7]
-            >> vertices[8] >> vertices[9] >> vertices[10] >> vertices[11]
-            >> vertices[12] >> vertices[13] >> vertices[14] >> vertices[15];
-
-        for (auto it = skupHipoteza.begin(); it != skupHipoteza.end(); ) {
-            // proveriti da li hipoteza vazi za ucitana temena
-            // ako ne vazi, izbaciti hipotezu iz skupa
-            int i = it->at(0);
-            int j = it->at(1);
-            int i1 = it->at(2);
-            int j1 = it->at(3);
-
-            if (std::fabs(
-                    (vertices[2*i] - vertices[2*j])*(vertices[2*i] - vertices[2*j]) +
-                    (vertices[2*i+1] - vertices[2*j+1])*(vertices[2*i+1] - vertices[2*j+1]) -
-                    4*(vertices[2*i1] - vertices[2*j1])*(vertices[2*i1] - vertices[2*j1]) -
-                    4*(vertices[2*i1+1] - vertices[2*j1+1])*(vertices[2*i1+1] - vertices[2*j1+1])
-                ) < 10)
-            {
-                it++;
-            } else {
-                it = skupHipoteza.erase(it);
-            }
-        }
-    }
-    // pisem one hipoteze koje su prezivele sve cetvorouglove
-    for (auto hipoteza : skupHipoteza) {
-        hypoFile << hipoteza[0] << " " << hipoteza[1] << " = 2 x " << hipoteza[2] << " " << hipoteza[3] << std::endl;
-    }
-
-    hypoFile.close();
-    rectanglesFile.close();
-}
-
-static void test_3x() {
-    std::fstream rectanglesFile("rectangles.txt", std::ios::in);
-    std::fstream hypoFile("hypo3x.txt", std::ios::out | std::ios::trunc);
-
-    // skup parova duzi == SKUP HIPOTEZA
-    std::set<std::vector<int>> skupHipoteza;
-    int num_dots = 8;
-
-    for(int i = 0; i < num_dots; i++) {
-        for(int j = i + 1; j < num_dots; j++) {
-            for(int i1 = 0; i1 < num_dots; i1++) {
-                for(int j1 = i1 + 1; j1 < num_dots; j1++) {
-                    skupHipoteza.insert({i, j, i1, j1});
-                }
-            }
-        }
-    }
-
-    while (has_next_line(rectanglesFile)) {
-        double vertices[16];
-        rectanglesFile >> vertices[0] >> vertices[1] >> vertices[2] >> vertices[3]
-            >> vertices[4] >> vertices[5] >> vertices[6] >> vertices[7]
-            >> vertices[8] >> vertices[9] >> vertices[10] >> vertices[11]
-            >> vertices[12] >> vertices[13] >> vertices[14] >> vertices[15];
-
-        for (auto it = skupHipoteza.begin(); it != skupHipoteza.end(); ) {
-            // proveriti da li hipoteza vazi za ucitana temena
-            // ako ne vazi, izbaciti hipotezu iz skupa
-            int i = it->at(0);
-            int j = it->at(1);
-            int i1 = it->at(2);
-            int j1 = it->at(3);
-
-            if (std::fabs(
-                    (vertices[2*i] - vertices[2*j])*(vertices[2*i] - vertices[2*j]) +
-                    (vertices[2*i+1] - vertices[2*j+1])*(vertices[2*i+1] - vertices[2*j+1]) -
-                    9*(vertices[2*i1] - vertices[2*j1])*(vertices[2*i1] - vertices[2*j1]) -
-                    9*(vertices[2*i1+1] - vertices[2*j1+1])*(vertices[2*i1+1] - vertices[2*j1+1])
-                ) < 10)
-            {
-                it++;
-            } else {
-                it = skupHipoteza.erase(it);
-            }
-        }
-    }
-    // pisem one hipoteze koje su prezivele sve cetvorouglove
-    for (auto hipoteza : skupHipoteza) {
-        hypoFile << hipoteza[0] << " " << hipoteza[1] << " = 2 x " << hipoteza[2] << " " << hipoteza[3] << std::endl;
-    }
-
-    hypoFile.close();
-    rectanglesFile.close();
 }
 
 int main() {
-    // generate_rectangles(NUM_RECTANGLES);
+    Point a, b, c, d;
+    while (Point::rectangleDegenerate(a, b, c, d)) {
+        a.generate_again();
+        b.generate_again();
+        c.generate_again();
+        d.generate_again();
+    }
+    Rectangle rectangle(a, b, c, d);
 
-    test_paralel();
-    test_2x();
-    test_3x();
+
 
     return 0;
 }
